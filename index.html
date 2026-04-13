@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CYBER BREAKER-GAMES | Hand Tracking Ball Game</title>
+    <meta name="description" content="AI-powered hand tracking ball catching game with real-time physics and leaderboard.">
+    
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=Outfit:wght@300;400;700;900&family=Syncopate:wght@400;700&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <canvas id="bg-particles"></canvas>
+
+    <div class="app-container">
+        <header>
+            <div class="logo-wrapper">
+                <div class="logo-icon" style="width: 50px; height: 50px; border-radius: 50%; overflow: hidden; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 15px rgba(0, 189, 255, 0.5);">
+                    <img src="logo.jpeg" alt="CYBER BREAKER-GAMES" style="width: 100%; height: 100%; object-fit: cover;">
+                </div>
+                <div class="logo-text">
+                    <h1 style="font-size: 1.5rem; letter-spacing: 1px;">CYBER <span class="accent">BREAKER-GAMES</span></h1>
+                    <p class="tagline">Hand Detection Arena v4.0</p>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-chip glass-morphism">
+                    <span class="chip-label">CAUGHT</span>
+                    <span class="chip-value" id="score-display">0</span>
+                </div>
+                <div class="stat-chip glass-morphism wave-chip">
+                    <span class="chip-label">WAVE</span>
+                    <span class="chip-value" id="wave-display">0/5</span>
+                </div>
+                <div class="stat-chip glass-morphism" id="hand-chip">
+                    <span class="chip-label">HAND</span>
+                    <span class="chip-value" id="hand-status">—</span>
+                </div>
+            </div>
+        </header>
+
+        <main>
+            <div class="grid-layout">
+                <div class="viewport-section">
+                    <div class="viewport-container" id="game-viewport">
+                        <div class="hud hud-tl" id="hud-player">PLAYER: —</div>
+                        <div class="hud hud-tr" id="hud-balls">BALLS: 0/100</div>
+                        <div class="hud hud-bl" id="hud-link">HAND_LINK: OFFLINE</div>
+                        <div class="hud hud-br" id="hud-live">AIRBORNE: 0</div>
+                        <div class="scanline"></div>
+
+                        <video id="input-video" playsinline></video>
+                        <canvas id="game-canvas"></canvas>
+
+                        <!-- WAVE ANNOUNCEMENT -->
+                        <div id="wave-announce" class="wave-announce">
+                            <span id="wave-announce-text">WAVE 1</span>
+                        </div>
+
+                        <!-- 1. MODE SELECTION -->
+                        <div id="mode-select-overlay" class="full-overlay">
+                            <div class="overlay-box mode-select-box">
+                                <h2>CYBER <span class="accent">BREAKER</span></h2>
+                                <p>Select your play style to begin the experience</p>
+                                <div class="mode-select-grid">
+                                    <div class="mode-card" id="mode-solo" onclick="setPlayMode('solo')">
+                                        <div class="mode-icon">👤</div>
+                                        <div class="mode-title">SOLO PLAYER</div>
+                                        <div class="mode-desc">Standard session for one student</div>
+                                    </div>
+                                    <div class="mode-card" id="mode-group" onclick="setPlayMode('group')">
+                                        <div class="mode-icon">👥</div>
+                                        <div class="mode-title">MULTIPLAYER</div>
+                                        <div class="mode-desc">Competition mode for friends & groups</div>
+                                    </div>
+                                </div>
+                                <div class="camera-status-bottom">
+                                    <span id="cam-status-text">INITIALIZING CAMERA...</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 2. WELCOME / SIGNUP -->
+                        <div id="welcome-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box" id="signup-box">
+                                <!-- Solo Signup -->
+                                <div id="solo-signup">
+                                    <h2>SOLO <span class="accent">SIGNUP</span></h2>
+                                    <p>Enter your name to enter the arena</p>
+                                    <div class="name-input-group">
+                                        <label for="player-name">PLAYER NAME</label>
+                                        <input type="text" id="player-name" placeholder="Enter your name..." maxlength="16" autocomplete="off">
+                                    </div>
+                                    <button id="btn-start" class="cyber-btn primary-c" disabled>
+                                        <span>ENTER ARENA</span>
+                                    </button>
+                                </div>
+
+                                <!-- Group Signup -->
+                                <div id="group-signup" style="display:none;">
+                                    <h2>GROUP <span class="accent">ARENA</span></h2>
+                                    <p>Add <strong>exactly three</strong> students to compete</p>
+                                    <div class="group-input-area">
+                                        <div class="name-input-group">
+                                            <input type="text" id="group-name-input" placeholder="Friend's name..." maxlength="16" autocomplete="off">
+                                            <button id="btn-add-player" class="cyber-btn secondary-c" style="width: auto; padding: 0.8rem 1.5rem;">ADD</button>
+                                        </div>
+                                        <div id="group-list" class="group-list">
+                                            <!-- Player chips here -->
+                                        </div>
+                                        <div id="group-limit-msg" style="font-size: 0.65rem; color: var(--secondary); margin-top: 0.5rem; text-align: center; font-family: var(--font-mono);">
+                                            Required: 3 Students
+                                        </div>
+                                    </div>
+                                    <button id="btn-start-group" class="cyber-btn primary-c" disabled style="margin-top: 1rem;">
+                                        <span>START GROUP BATTLE (0/3)</span>
+                                    </button>
+                                </div>
+                                
+                                <button class="back-link" onclick="backToModeSelect()">← Back to Mode Select</button>
+                            </div>
+                        </div>
+
+                        <!-- GAME SELECTION -->
+                        <div id="game-select-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box game-select-box">
+                                <h2>CHOOSE YOUR <span class="accent">GAME</span></h2>
+                                <p style="color:var(--text-dim);font-size:0.8rem;margin-bottom:1.5rem;">Select a game mode for this session</p>
+                                <div class="game-select-grid">
+                                    <div class="game-select-card" id="select-basket">
+                                        <div class="game-card-glow basket-glow"></div>
+                                        <div class="game-card-icon">🧺</div>
+                                        <div class="game-card-title">CYBER BASKET</div>
+                                        <div class="game-card-desc">Catch falling balls with your hand-controlled basket. 5 waves, 100 balls!</div>
+                                        <div class="game-card-badge">1 HAND</div>
+                                    </div>
+                                    <div class="game-select-card" id="select-archery">
+                                        <div class="game-card-glow archery-glow"></div>
+                                        <div class="game-card-icon">🏹</div>
+                                        <div class="game-card-title">SHARP SHOOTER</div>
+                                        <div class="game-card-desc">Aim with a bow, stay calm, and hit the bullseye! 5 arrows, maximum precision.</div>
+                                        <div class="game-card-badge">2 HANDS</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 4. UNIFIED TUTORIAL ACADEMY -->
+                        <div id="tutorial-academy-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box academy-box">
+                                <div class="academy-header">
+                                    <div class="academy-tag">TRAINING IN PROGRESS</div>
+                                    <h2 id="tut-academy-title">CYBER BASKET TUTORIAL</h2>
+                                </div>
+                                <div class="academy-content">
+                                    <div class="video-mockup">
+                                        <div class="tutorial-anim" id="tut-visual-container">
+                                            <!-- Specific game tutorial visual -->
+                                            <div class="placeholder-icon">📺</div>
+                                        </div>
+                                        <div class="video-overlay">
+                                            <div class="play-btn"></div>
+                                        </div>
+                                    </div>
+                                    <div class="academy-steps" id="tut-academy-steps">
+                                        <!-- Steps generated by script -->
+                                    </div>
+                                </div>
+                                <button class="cyber-btn primary-c" id="btn-tutorial-ready">
+                                    <span>I'M READY TO START</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 2. CALIBRATION: Show them how to hold their hand -->
+                        <div id="calibrate-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box calibrate-box">
+                                <h2>PREPARE YOUR HAND</h2>
+                                <div class="hand-guide">
+                                    <div class="hand-visual" id="hand-visual">
+                                        <svg viewBox="0 0 200 260" fill="none" xmlns="http://www.w3.org/2000/svg" class="hand-svg">
+                                            <!-- Palm -->
+                                            <ellipse cx="100" cy="170" rx="55" ry="65" fill="rgba(0,189,255,0.1)" stroke="#00bdff" stroke-width="2" stroke-dasharray="4 3"/>
+                                            <!-- Thumb -->
+                                            <path d="M50 160 Q30 130 40 100 Q45 85 55 90" stroke="#00bdff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                            <!-- Index -->
+                                            <path d="M70 115 Q72 70 78 35" stroke="#00ff88" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                            <!-- Middle -->
+                                            <path d="M95 110 Q97 55 100 20" stroke="#00ff88" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                            <!-- Ring -->
+                                            <path d="M118 115 Q120 65 122 35" stroke="#00ff88" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                            <!-- Pinky -->
+                                            <path d="M140 125 Q145 85 148 55" stroke="#00ff88" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                            <!-- Fingertips -->
+                                            <circle cx="55" cy="88" r="5" fill="#00bdff"/>
+                                            <circle cx="78" cy="33" r="5" fill="#00ff88"/>
+                                            <circle cx="100" cy="18" r="5" fill="#00ff88"/>
+                                            <circle cx="122" cy="33" r="5" fill="#00ff88"/>
+                                            <circle cx="148" cy="53" r="5" fill="#00ff88"/>
+                                            <!-- Wrist -->
+                                            <circle cx="100" cy="230" r="5" fill="#00bdff"/>
+                                        </svg>
+                                    </div>
+                                    <div class="guide-instructions">
+                                        <div class="guide-step">
+                                            <span class="step-num">01</span>
+                                            <span>Open your hand with fingers spread</span>
+                                        </div>
+                                        <div class="guide-step">
+                                            <span class="step-num">02</span>
+                                            <span>Hold it in front of the camera</span>
+                                        </div>
+                                        <div class="guide-step">
+                                            <span class="step-num">03</span>
+                                            <span>Keep it visible at all times!</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="detect-status" id="detect-status">
+                                    <div class="detect-searching">
+                                        <div class="pulse-ring"></div>
+                                        <span>SEARCHING FOR HAND...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 3. COUNTDOWN overlay (3-2-1-GO) -->
+                        <div id="countdown-overlay" class="full-overlay countdown-bg" style="display:none;">
+                            <div class="countdown-number" id="countdown-number">3</div>
+                        </div>
+
+                        <!-- 4. TURN END (complete / out) -->
+                        <div id="turn-end-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box" id="turn-end-box"></div>
+                        </div>
+
+                        <!-- 5. FINAL RESULTS -->
+                        <div id="results-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box results-box">
+                                <h2>🏆 CHAMPION</h2>
+                                <div class="winner-announce" id="winner-announce"></div>
+                                <div id="final-leaderboard" class="final-leaderboard"></div>
+                                <button class="cyber-btn primary-c" onclick="localStorage.removeItem('neural_basket_lb');localStorage.removeItem('arch_leaderboard');location.reload()">
+                                    <span>NEW TOURNAMENT</span>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- 6. LOADING -->
+                        <div id="loading-overlay" class="full-overlay loading-bg">
+                            <div class="neural-loader"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+                            <h3 class="blink-text">INITIALIZING HAND SENSORS...</h3>
+                        </div>
+
+                        <!-- 7. TUTORIAL VIDEO -->
+                        <div id="tutorial-video-overlay" class="full-overlay tutorial-vid-bg" style="display:none;">
+                            <button class="skip-tutorial-btn" id="btn-skip-tut-video">SKIP TUTORIAL ⏭</button>
+                            <div class="tutorial-vid-wrapper">
+                                <div class="tut-slides-container">
+                                    <div class="tut-slide active" id="tut-slide-0">
+                                        <div class="tut-slide-visual"><div class="tut-icon-large">🎮</div></div>
+                                        <h2>Welcome to <span class="accent">CYBER BASKET</span></h2>
+                                        <p>This tutorial will teach you how to control the game using only your hand movements. Watch carefully!</p>
+                                    </div>
+                                    <div class="tut-slide" id="tut-slide-1">
+                                        <div class="tut-slide-visual">
+                                            <div class="tut-hand-anim">
+                                                <svg viewBox="0 0 200 260" fill="none" xmlns="http://www.w3.org/2000/svg" class="tut-hand-svg">
+                                                    <ellipse cx="100" cy="170" rx="55" ry="65" fill="rgba(0,255,136,0.1)" stroke="#00ff88" stroke-width="2"/>
+                                                    <path d="M50 160 Q30 130 40 100 Q45 85 55 90" stroke="#00ff88" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                                    <path d="M70 115 Q72 70 78 35" stroke="#00bdff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                                    <path d="M95 110 Q97 55 100 20" stroke="#00bdff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                                    <path d="M118 115 Q120 65 122 35" stroke="#00bdff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                                    <path d="M140 125 Q145 85 148 55" stroke="#00bdff" stroke-width="3" fill="none" stroke-linecap="round"/>
+                                                    <circle cx="55" cy="88" r="5" fill="#00ff88"/><circle cx="78" cy="33" r="5" fill="#00bdff"/>
+                                                    <circle cx="100" cy="18" r="5" fill="#00bdff"/><circle cx="122" cy="33" r="5" fill="#00bdff"/>
+                                                    <circle cx="148" cy="53" r="5" fill="#00bdff"/>
+                                                </svg>
+                                            </div>
+                                        </div>
+                                        <h2>Step 1: <span class="accent">Show Your Hand</span></h2>
+                                        <p>Open your hand with fingers spread and hold it in front of the camera. The AI will detect and track every movement in real-time.</p>
+                                    </div>
+                                    <div class="tut-slide" id="tut-slide-2">
+                                        <div class="tut-slide-visual">
+                                            <div class="tut-basket-anim">
+                                                <div class="tut-basket-icon">🧺</div>
+                                                <div class="tut-arrow-trail"></div>
+                                            </div>
+                                        </div>
+                                        <h2>Step 2: <span class="accent">Control the Basket</span></h2>
+                                        <p>Move your hand to control the virtual basket. It follows your hand position in real-time. Keep movements smooth and steady!</p>
+                                    </div>
+                                    <div class="tut-slide" id="tut-slide-3">
+                                        <div class="tut-slide-visual">
+                                            <div class="tut-catch-anim">
+                                                <div class="tut-ball-falling" style="left:20%">🔴</div>
+                                                <div class="tut-ball-falling delay1" style="left:50%">🟡</div>
+                                                <div class="tut-ball-falling delay2" style="left:75%">🔵</div>
+                                                <div class="tut-basket-below">🧺</div>
+                                            </div>
+                                        </div>
+                                        <h2>Step 3: <span class="accent">Catch the Balls</span></h2>
+                                        <p>Colorful balls rain down in 5 waves — 100 balls total! Position your basket underneath to catch them. Each catch scores a point!</p>
+                                    </div>
+                                    <div class="tut-slide" id="tut-slide-4">
+                                        <div class="tut-slide-visual">
+                                            <div class="tut-warning-anim">
+                                                <div class="tut-warning-icon">⚠️</div>
+                                                <div class="tut-warning-pulse"></div>
+                                            </div>
+                                        </div>
+                                        <h2>⚠️ <span style="color:var(--danger)">Keep Hand Visible!</span></h2>
+                                        <p>If your hand leaves the camera view during the game, you're <strong style="color:var(--danger)">INSTANTLY OUT!</strong> Always keep your hand within the frame.</p>
+                                    </div>
+                                    <div class="tut-slide" id="tut-slide-5">
+                                        <div class="tut-slide-visual"><div class="tut-icon-large tut-icon-rocket">🚀</div></div>
+                                        <h2>Ready to <span class="accent">Practice?</span></h2>
+                                        <p>Now let's do some quick training exercises! Complete at least 2 tasks to prove your skills and unlock the real game.</p>
+                                    </div>
+                                </div>
+                                <div class="tut-video-controls">
+                                    <div class="tut-progress-bar"><div class="tut-progress-fill" id="tut-progress-fill"></div></div>
+                                    <div class="tut-slide-dots" id="tut-slide-dots"></div>
+                                    <div class="tut-slide-counter" id="tut-slide-counter">1 / 6</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 8. TUTORIAL TASKS MENU -->
+                        <div id="tutorial-tasks-overlay" class="full-overlay" style="display:none;">
+                            <button class="skip-tutorial-btn" id="btn-skip-tut-tasks">SKIP TUTORIAL ⏭</button>
+                            <div class="overlay-box tutorial-tasks-box">
+                                <h2>TRAINING <span class="accent">ARENA</span></h2>
+                                <p>Master these skills before the real game! Complete at least <strong style="color:var(--primary)">2 tasks</strong> to unlock.</p>
+                                <div class="task-cards-grid" id="task-cards"></div>
+                                <div class="tut-tasks-footer">
+                                    <div class="tut-tasks-progress-bar"><div class="tut-tasks-progress-fill" id="tut-tasks-progress-fill"></div></div>
+                                    <div class="tut-tasks-status" id="tut-tasks-status">0 / 2 COMPLETED</div>
+                                    <button id="btn-start-game" class="cyber-btn primary-c" disabled>
+                                        <span>COMPLETE 2 TASKS TO UNLOCK 🔒</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 9. ACTIVE TASK HUD (positioned over canvas during tasks) -->
+                        <div id="active-task-hud" class="active-task-hud" style="display:none;">
+                            <div class="task-hud-bar">
+                                <div class="task-hud-left">
+                                    <span class="task-hud-icon" id="task-hud-icon">✋</span>
+                                    <span class="task-hud-name" id="task-hud-name">DRAW A LINE</span>
+                                </div>
+                                <div class="task-hud-right">
+                                    <span class="task-hud-pct" id="task-hud-pct">0%</span>
+                                    <button class="task-cancel-btn" id="btn-task-cancel">✕</button>
+                                </div>
+                            </div>
+                            <div class="task-hud-instruction" id="task-hud-instruction">Move your hand to draw a glowing line</div>
+                            <div class="task-progress-track"><div class="task-progress-bar-fill" id="task-progress-bar-fill"></div></div>
+                        </div>
+
+                        <!-- 10. TASK COMPLETE POPUP -->
+                        <div id="task-complete-popup" class="task-complete-popup" style="display:none;">
+                            <div class="task-complete-inner">
+                                <div class="task-complete-check">✓</div>
+                                <h3>TASK COMPLETE!</h3>
+                                <p id="task-complete-msg">Excellent work!</p>
+                            </div>
+                        </div>
+
+                        <!-- ═══ ARCHERY OVERLAYS ═══ -->
+
+                        <!-- 11. ARCHERY TUTORIAL -->
+                        <div id="archery-tutorial-overlay" class="full-overlay tutorial-vid-bg" style="display:none;">
+                            <button class="skip-tutorial-btn" id="btn-skip-arch-tut">SKIP TUTORIAL ⏭</button>
+                            <div class="tutorial-vid-wrapper">
+                                <div class="tut-slides-container">
+                                    <div class="arch-tut-slide active" id="arch-tut-slide-0">
+                                        <div class="tut-slide-visual"><div class="tut-icon-large" style="font-size:5rem;">🏹</div></div>
+                                        <h2>Welcome to <span class="accent">SHARP SHOOTER</span></h2>
+                                        <p>Master the art of archery with your bare hands. Stay calm, aim precisely, and hit the bullseye!</p>
+                                    </div>
+                                    <div class="arch-tut-slide" id="arch-tut-slide-1">
+                                        <div class="tut-slide-visual">
+                                            <div style="display:flex;gap:1.5rem;align-items:center;animation:tutHandBob 3s ease-in-out infinite;">
+                                                <span style="font-size:3.5rem;filter:drop-shadow(0 0 10px #00ff88)">🤚</span>
+                                                <span style="font-size:1.5rem;color:var(--text-dim)">+</span>
+                                                <span style="font-size:3.5rem;filter:drop-shadow(0 0 10px #00bdff)">✋</span>
+                                            </div>
+                                        </div>
+                                        <h2>Step 1: <span class="accent">Use Both Hands</span></h2>
+                                        <p>Hold the <strong style="color:#00ff88">BOW</strong> with your left hand. Your <strong style="color:#00bdff">RIGHT hand</strong> pulls the string back to draw the arrow.</p>
+                                    </div>
+                                    <div class="arch-tut-slide" id="arch-tut-slide-2">
+                                        <div class="tut-slide-visual">
+                                            <div style="position:relative;animation:tutBasketMove 3s ease-in-out infinite;">
+                                                <span style="font-size:4rem;filter:drop-shadow(0 0 15px #ff6b35)">🏹</span>
+                                                <div style="position:absolute;bottom:-12px;left:50%;transform:translateX(-50%);width:60px;height:3px;background:var(--accent-gradient);border-radius:2px;opacity:0.6"></div>
+                                            </div>
+                                        </div>
+                                        <h2>Step 2: <span class="accent">Draw & Release</span></h2>
+                                        <p>Pull your right hand <strong>back</strong> to draw the bow. When fully drawn, <strong>release</strong> by moving your hand forward quickly. The arrow fires toward the target!</p>
+                                    </div>
+                                    <div class="arch-tut-slide" id="arch-tut-slide-3">
+                                        <div class="tut-slide-visual">
+                                            <div class="tut-warning-anim">
+                                                <span style="font-size:5rem;animation:tutIconPulse 2s ease-in-out infinite;filter:drop-shadow(0 0 20px #00ff88)">🧘</span>
+                                            </div>
+                                        </div>
+                                        <h2>Step 3: <span class="accent">Stay Calm!</span></h2>
+                                        <p><strong style="color:#ff3b5c">⚠️ KEY TRICK:</strong> If your BOW hand shakes or moves while aiming, your arrow will <strong>MISS</strong>. The steadier you are, the more accurate your shot!</p>
+                                    </div>
+                                    <div class="arch-tut-slide" id="arch-tut-slide-4">
+                                        <div class="tut-slide-visual">
+                                            <div style="position:relative;">
+                                                <span style="font-size:5rem;animation:tutRocketBounce 1.5s ease-in-out infinite;filter:drop-shadow(0 0 15px #FFD700)">🎯</span>
+                                            </div>
+                                        </div>
+                                        <h2>Step 4: <span class="accent">Hit the Bullseye!</span></h2>
+                                        <p>You get <strong>5 arrows</strong>. Aim for the center to score <strong style="color:#FFD700">10 points</strong>. Maximum possible score: <strong>50</strong>. Good luck, archer!</p>
+                                    </div>
+                                </div>
+                                <div class="tut-video-controls">
+                                    <div class="tut-progress-bar"><div class="tut-progress-fill" id="arch-tut-progress-fill"></div></div>
+                                    <div class="tut-slide-dots" id="arch-tut-dots"></div>
+                                    <div class="tut-slide-counter" id="arch-tut-counter">1 / 5</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 12. ARCHERY CALIBRATION (2 HANDS) -->
+                        <div id="archery-calibrate-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box arch-cal-box">
+                                <h2>PREPARE YOUR <span class="accent">HANDS</span></h2>
+                                <p style="color:var(--text-dim);font-size:0.8rem;">Show both hands to the camera to begin</p>
+                                <div class="arch-cal-hands">
+                                    <div class="arch-cal-hand" id="arch-cal-hand1">
+                                        <span>🤚</span>
+                                        <small>BOW HAND</small>
+                                    </div>
+                                    <div class="arch-cal-hand" id="arch-cal-hand2">
+                                        <span>✋</span>
+                                        <small>DRAW HAND</small>
+                                    </div>
+                                </div>
+                                <div class="arch-cal-status" id="arch-cal-status">SHOW BOTH HANDS 🖐️🖐️</div>
+                            </div>
+                        </div>
+
+                        <!-- 13. ARCHERY HUD -->
+                        <div id="archery-hud" class="archery-hud" style="display:none;">
+                            <div class="arch-hud-row">
+                                <div class="arch-hud-item">
+                                    <span class="arch-hud-label">ARROWS</span>
+                                    <span class="arch-hud-val" id="arch-hud-shots">5</span>
+                                </div>
+                                <div class="arch-hud-item">
+                                    <span class="arch-hud-label">SCORE</span>
+                                    <span class="arch-hud-val accent" id="arch-hud-score">0</span>
+                                </div>
+                            </div>
+                            <div class="arch-stability-meter">
+                                <span class="arch-stability-label" id="arch-stability-label">STEADY</span>
+                                <div class="arch-stability-track"><div class="arch-stability-fill" id="arch-stability-fill"></div></div>
+                            </div>
+                        </div>
+
+                        <!-- 14. ARCHERY WIND INDICATOR -->
+                        <div id="archery-wind" class="wind-indicator" style="display:none;">
+                            <div class="wind-compass">
+                                <div id="wind-arrow" class="wind-arrow"></div>
+                            </div>
+                            <span class="wind-label" id="wind-speed">0 MPH</span>
+                        </div>
+
+                        <!-- 15. ARCHERY SHOT RESULT POPUP -->
+                        <div id="archery-shot-popup" class="arch-shot-popup" style="display:none;">
+                            <div class="arch-shot-inner">
+                                <div class="arch-shot-emoji" id="arch-shot-emoji">🎯</div>
+                                <div class="arch-shot-label" id="arch-shot-label">BULLSEYE!</div>
+                                <div class="arch-shot-score" id="arch-shot-score">+10</div>
+                                <div class="arch-shot-num" id="arch-shot-num">Shot 1 of 5</div>
+                            </div>
+                        </div>
+
+                        <!-- 15. ARCHERY ROUND END -->
+                        <div id="archery-end-overlay" class="full-overlay" style="display:none;">
+                            <div class="overlay-box arch-end-box">
+                                <h2>🏹 ROUND COMPLETE</h2>
+                                <div class="arch-end-player" id="arch-end-name"></div>
+                                <div class="arch-end-score-wrap">
+                                    <span class="arch-end-total" id="arch-end-total">0</span>
+                                    <span class="arch-end-max" id="arch-end-max"> / 50</span>
+                                </div>
+                                <div class="arch-end-breakdown" id="arch-end-breakdown"></div>
+                                <div style="display:flex;gap:0.8rem;flex-wrap:wrap;justify-content:center;margin-top:1.2rem;">
+                                    <button class="cyber-btn primary-c" id="btn-arch-next"><span>NEXT STUDENT →</span></button>
+                                    <button class="cyber-btn danger-c" id="btn-arch-end-tourn"><span>🏁 END TOURNAMENT</span></button>
+                                </div>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+                <!-- Sidebar -->
+                <div class="sidebar-section">
+                    <div class="card glass-card">
+                        <div class="card-header"><span class="icon">🏆</span><h3>LEADERBOARD</h3></div>
+                        <div class="card-body">
+                            <div class="lb-tabs">
+                                <div class="lb-tab active" id="tab-basket" onclick="switchLB('basket')">BASKET</div>
+                                <div class="lb-tab" id="tab-archery" onclick="switchLB('archery')">ARCHERY</div>
+                            </div>
+                            <div id="leaderboard-container">
+                                <div class="empty-state">No players yet</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card glass-card">
+                        <div class="card-header"><span class="icon">📊</span><h3>LIVE STATS</h3></div>
+                        <div class="card-body">
+                            <div class="stat-row"><span class="label">CATCH RATE</span><div class="progress-bar"><div id="catch-rate-bar" class="fill" style="width:0%"></div></div></div>
+                            <div class="stat-row"><span class="label">MISSED</span><span class="value" id="stat-missed">0</span></div>
+                            <div class="stat-row"><span class="label">AIRBORNE</span><span class="value" id="stat-live">0</span></div>
+                        </div>
+                    </div>
+                    <div class="action-zone">
+                        <button id="btn-end-game" class="cyber-btn danger-c" style="display:none;">
+                            <span>🏁 END TOURNAMENT</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <footer>
+            <div class="footer-content">
+                <span class="scroll-text">CYBER BREAKER-GAMES &bull; BASKET CATCH &bull; SHARP SHOOTER &bull; HAND TRACKING &bull; STAY FOCUSED &bull; KEEP PLAYING &bull;</span>
+            </div>
+        </footer>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="archery.js"></script>
+</body>
+</html>
